@@ -1,5 +1,5 @@
 import { config } from 'dotenv';
 config();
 
-import '@/ai/flows/dentist-schedule-optimizer.ts';
-import '@/ai/flows/patient-appointment-assistant-flow.ts';
+import '@/ai/flujos/optimizador-agenda-dentista.ts';
+import '@/ai/flujos/asistente-citas-paciente.ts';

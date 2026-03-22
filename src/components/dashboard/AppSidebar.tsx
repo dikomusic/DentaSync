@@ -8,7 +8,6 @@ import {
   Settings,
   Bot,
   Activity,
-  ClipboardList,
   Stethoscope,
   LogOut,
 } from "lucide-react";
@@ -27,16 +26,16 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const navItems = [
-  { icon: LayoutDashboard, label: "Panel de Control", href: "/dashboard" },
+const elementosNavegacion = [
+  { icon: LayoutDashboard, label: "Panel de Control", href: "/panel-de-control" },
   { icon: Calendar, label: "Agenda", href: "/agenda" },
-  { icon: Users, label: "Pacientes", href: "/patients" },
-  { icon: Bot, label: "Asistente IA", href: "/ai-assistant" },
-  { icon: Activity, label: "Analítica", href: "/analytics" },
+  { icon: Users, label: "Pacientes", href: "/pacientes" },
+  { icon: Bot, label: "Asistente IA", href: "/asistente-ia" },
+  { icon: Activity, label: "Analítica", href: "/analitica" },
 ];
 
-const secondaryItems = [
-  { icon: Settings, label: "Configuración", href: "/settings" },
+const elementosSecundarios = [
+  { icon: Settings, label: "Configuración", href: "/configuracion" },
 ];
 
 export function AppSidebar() {
@@ -61,7 +60,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Principal</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {elementosNavegacion.map((item) => (
                 <SidebarMenuItem key={item.label}>
                   <SidebarMenuButton
                     asChild
@@ -84,7 +83,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Administración</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {secondaryItems.map((item) => (
+              {elementosSecundarios.map((item) => (
                 <SidebarMenuItem key={item.label}>
                   <SidebarMenuButton
                     asChild
