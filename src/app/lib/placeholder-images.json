@@ -1,0 +1,22 @@
+{
+  "placeholderImages": [
+    {
+      "id": "dental-office",
+      "description": "A clean and modern dental office interior.",
+      "imageUrl": "https://picsum.photos/seed/dentalsync1/1200/800",
+      "imageHint": "dental office"
+    },
+    {
+      "id": "dentist-working",
+      "description": "A professional dentist examining a patient.",
+      "imageUrl": "https://picsum.photos/seed/dentalsync2/600/400",
+      "imageHint": "dentist treatment"
+    },
+    {
+      "id": "patient-profile-1",
+      "description": "Portrait of a smiling patient.",
+      "imageUrl": "https://picsum.photos/seed/patient1/200/200",
+      "imageHint": "smiling person"
+    }
+  ]
+}
