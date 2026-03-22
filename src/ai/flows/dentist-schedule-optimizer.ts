@@ -1,59 +1,59 @@
 'use server';
 /**
- * @fileOverview An AI assistant flow for optimizing a dentist's schedule.
+ * @fileOverview Asistente de IA para optimizar la agenda de un dentista.
  *
- * - optimizeDentistSchedule - A function that handles the dentist schedule optimization process.
- * - DentistScheduleOptimizerInput - The input type for the optimizeDentistSchedule function.
- * - DentistScheduleOptimizerOutput - The return type for the optimizeDentistSchedule function.
+ * - optimizeDentistSchedule - Función que maneja el proceso de optimización de la agenda.
+ * - DentistScheduleOptimizerInput - Tipo de entrada para la función.
+ * - DentistScheduleOptimizerOutput - Tipo de retorno para la función.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const DentistScheduleOptimizerInputSchema = z.object({
-  dentistId: z.string().describe('The unique identifier for the dentist.'),
+  dentistId: z.string().describe('El identificador único del dentista.'),
   currentSchedule: z.array(
     z.object({
-      date: z.string().describe('The date of the appointment (YYYY-MM-DD).'),
-      time: z.string().describe('The start time of the appointment (HH:MM).'),
-      patientId: z.string().describe('The unique identifier for the patient.'),
-      treatmentType: z.string().describe('The type of treatment scheduled.'),
-      durationMinutes: z.number().optional().describe('The actual duration of the appointment in minutes, if known.'),
+      date: z.string().describe('La fecha de la cita (AAAA-MM-DD).'),
+      time: z.string().describe('La hora de inicio de la cita (HH:MM).'),
+      patientId: z.string().describe('El identificador único del paciente.'),
+      treatmentType: z.string().describe('El tipo de tratamiento programado.'),
+      durationMinutes: z.number().optional().describe('La duración real de la cita en minutos, si se conoce.'),
     })
-  ).describe('The current schedule of appointments.'),
+  ).describe('La agenda actual de citas.'),
   patientProfiles: z.array(
     z.object({
-      patientId: z.string().describe('The unique identifier for the patient.'),
-      name: z.string().describe('The name of the patient.'),
-      preferredTimeSlots: z.array(z.string()).optional().describe('Preferred time slots for appointments (e.g., "morning", "afternoon").'),
-      historicalTreatmentDurations: z.record(z.string(), z.number()).optional().describe('Historical durations in minutes for different treatment types for this patient.'),
-      noShowRate: z.number().optional().describe('The no-show rate for the patient, as a percentage (0-100).'),
+      patientId: z.string().describe('El identificador único del paciente.'),
+      name: z.string().describe('El nombre del paciente.'),
+      preferredTimeSlots: z.array(z.string()).optional().describe('Franjas horarias preferidas (ej. "mañana", "tarde").'),
+      historicalTreatmentDurations: z.record(z.string(), z.number()).optional().describe('Duraciones históricas en minutos para diferentes tratamientos de este paciente.'),
+      noShowRate: z.number().optional().describe('Tasa de inasistencia del paciente, como porcentaje (0-100).'),
     })
-  ).describe('Profiles of patients, including historical data and preferences.'),
+  ).describe('Perfiles de pacientes, incluyendo datos históricos y preferencias.'),
   availableTimeSlots: z.array(
     z.object({
-      date: z.string().describe('The date of the available slot (YYYY-MM-DD).'),
-      startTime: z.string().describe('The start time of the available slot (HH:MM).'),
-      endTime: z.string().describe('The end time of the available slot (HH:MM).'),
+      date: z.string().describe('La fecha del espacio disponible (AAAA-MM-DD).'),
+      startTime: z.string().describe('La hora de inicio del espacio disponible (HH:MM).'),
+      endTime: z.string().describe('La hora de fin del espacio disponible (HH:MM).'),
     })
-  ).describe('List of currently available time slots for scheduling new or re-assigning appointments.'),
-  standardTreatmentDurations: z.record(z.string(), z.number()).describe('Standard durations in minutes for various treatment types.'),
+  ).describe('Lista de espacios de tiempo actualmente disponibles.'),
+  standardTreatmentDurations: z.record(z.string(), z.number()).describe('Duraciones estándar en minutos para varios tipos de tratamiento.'),
 });
 export type DentistScheduleOptimizerInput = z.infer<typeof DentistScheduleOptimizerInputSchema>;
 
 const DentistScheduleOptimizerOutputSchema = z.object({
   optimizedSchedule: z.array(
     z.object({
-      date: z.string().describe('The date of the optimized appointment (YYYY-MM-DD).'),
-      time: z.string().describe('The start time of the optimized appointment (HH:MM).'),
-      patientId: z.string().describe('The unique identifier for the patient.'),
-      treatmentType: z.string().describe('The type of treatment scheduled.'),
-      assignedDurationMinutes: z.number().describe('The assigned duration for the appointment in minutes.'),
-      notes: z.string().optional().describe('Any specific notes or rationale for this appointment in the optimized schedule.'),
+      date: z.string().describe('La fecha de la cita optimizada (AAAA-MM-DD).'),
+      time: z.string().describe('La hora de inicio de la cita optimizada (HH:MM).'),
+      patientId: z.string().describe('El identificador único del paciente.'),
+      treatmentType: z.string().describe('El tipo de tratamiento programado.'),
+      assignedDurationMinutes: z.number().describe('La duración asignada para la cita en minutos.'),
+      notes: z.string().optional().describe('Notas o justificación para esta cita en la agenda optimizada.'),
     })
-  ).describe('The AI-suggested optimized schedule of appointments.'),
-  efficiencyReport: z.string().describe('A textual report summarizing efficiency improvements (e.g., reduced idle time, filled empty slots).'),
-  suggestions: z.array(z.string()).describe('Additional recommendations for the dentist based on the optimization.'),
+  ).describe('La agenda optimizada sugerida por la IA.'),
+  efficiencyReport: z.string().describe('Un informe textual que resume las mejoras de eficiencia (ej. reducción de tiempo muerto).'),
+  suggestions: z.array(z.string()).describe('Recomendaciones adicionales para el dentista basadas en la optimización.'),
 });
 export type DentistScheduleOptimizerOutput = z.infer<typeof DentistScheduleOptimizerOutputSchema>;
 
@@ -65,41 +65,40 @@ const prompt = ai.definePrompt({
   name: 'dentistScheduleOptimizerPrompt',
   input: {schema: DentistScheduleOptimizerInputSchema},
   output: {schema: DentistScheduleOptimizerOutputSchema},
-  prompt: `You are an expert dental office manager and schedule optimization AI. Your goal is to analyze the provided information and optimize the dentist's daily schedule to maximize efficiency, minimize empty slots, and improve patient flow.
+  prompt: `Eres un experto administrador de clínicas dentales y una IA de optimización de agendas. Tu objetivo es analizar la información proporcionada y optimizar la agenda diaria del dentista para maximizar la eficiencia, minimizar los espacios vacíos y mejorar el flujo de pacientes.
 
-Here is the current information:
+Aquí está la información actual:
 
-Dentist ID: {{{dentistId}}}
+ID del Dentista: {{{dentistId}}}
 
-Current Schedule:
+Agenda Actual:
 {{#each currentSchedule}}
-  - Date: {{this.date}}, Time: {{this.time}}, Patient ID: {{this.patientId}}, Treatment: {{this.treatmentType}}{{#if this.durationMinutes}}, Duration: {{this.durationMinutes}} minutes{{/if}}
+  - Fecha: {{this.date}}, Hora: {{this.time}}, Paciente: {{this.patientId}}, Tratamiento: {{this.treatmentType}}{{#if this.durationMinutes}}, Duración: {{this.durationMinutes}} minutos{{/if}}
 {{/each}}
 
-Patient Profiles (including historical data and preferences):
+Perfiles de Pacientes:
 {{#each patientProfiles}}
-  - Patient ID: {{this.patientId}}, Name: {{this.name}}
-    {{#if this.preferredTimeSlots}}Preferred Times: {{this.preferredTimeSlots}}{{/if}}
-    {{#if this.historicalTreatmentDurations}}Historical Treatment Durations: {{json this.historicalTreatmentDurations}}{{/if}}
-    {{#if this.noShowRate}}No-Show Rate: {{this.noShowRate}}%{{/if}}
+  - Paciente: {{this.name}} (ID: {{this.patientId}})
+    {{#if this.preferredTimeSlots}}Preferencias: {{this.preferredTimeSlots}}{{/if}}
+    {{#if this.noShowRate}}Tasa de Inasistencia: {{this.noShowRate}}%{{/if}}
 {{/each}}
 
-Available Time Slots for scheduling new or re-assigned appointments:
+Espacios Disponibles:
 {{#each availableTimeSlots}}
-  - Date: {{this.date}}, Start: {{this.startTime}}, End: {{this.endTime}}
+  - Fecha: {{this.date}}, Inicio: {{this.startTime}}, Fin: {{this.endTime}}
 {{/each}}
 
-Standard Treatment Durations (minutes):
+Duraciones Estándar (min):
 {{json standardTreatmentDurations}}
 
-Based on this information, provide an optimized schedule. Try to:
-1. Consolidate appointments where possible to reduce fragmented time.
-2. Fill empty slots using available time slots and considering patient preferences.
-3. Adjust appointment durations based on historical patient data and standard durations.
-4. Prioritize high-value treatments or patients where appropriate.
-5. Include a brief note for each appointment in the optimized schedule if there was a change or a specific reason for its placement.
+Basándote en esto, proporciona una agenda optimizada en ESPAÑOL. Intenta:
+1. Consolidar citas para reducir el tiempo fragmentado.
+2. Llenar espacios vacíos considerando las preferencias de los pacientes.
+3. Ajustar duraciones según datos históricos y estándares.
+4. Priorizar tratamientos de alto valor o pacientes urgentes.
+5. Incluir una nota breve por cada cambio realizado.
 
-Also, provide an efficiency report summarizing the improvements made (e.g., total idle time reduced, number of filled empty slots, improved patient flow description) and any additional suggestions for the dentist to further optimize their practice.`,
+También, proporciona un informe de eficiencia que resuma las mejoras y sugerencias adicionales para la práctica clínica.`,
 });
 
 const dentistScheduleOptimizerFlow = ai.defineFlow(

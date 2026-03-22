@@ -1,55 +1,52 @@
 'use server';
 /**
- * @fileOverview An AI-powered chatbot that assists patients with appointment inquiries, rescheduling, and common questions about the dental practice.
+ * @fileOverview Un chatbot con IA que asiste a los pacientes con consultas sobre citas, reprogramaciones y preguntas comunes.
  *
- * - patientAppointmentAssistant - A function that handles patient inquiries and appointment management.
- * - PatientAppointmentAssistantInput - The input type for the patientAppointmentAssistant function.
- * - PatientAppointmentAssistantOutput - The return type for the patientAppointmentAssistant function.
+ * - patientAppointmentAssistant - Función que maneja las consultas de los pacientes.
  */
 
 import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 
 const PatientAppointmentAssistantInputSchema = z.object({
-  patientId: z.string().describe('The unique identifier for the patient.'),
-  query: z.string().describe('The patient\u0027s question or request.'),
+  patientId: z.string().describe('El identificador único del paciente.'),
+  query: z.string().describe('La pregunta o solicitud del paciente.'),
 });
 export type PatientAppointmentAssistantInput = z.infer<typeof PatientAppointmentAssistantInputSchema>;
 
 const PatientAppointmentAssistantOutputSchema = z.object({
-  response: z.string().describe('The chatbot\u0027s response to the patient.'),
+  response: z.string().describe('La respuesta del chatbot al paciente.'),
 });
 export type PatientAppointmentAssistantOutput = z.infer<typeof PatientAppointmentAssistantOutputSchema>;
 
-// Dummy data for simulation
-const MOCK_APPOINTMENTS: Record<string, typeof PatientAppointmentAssistantOutputSchema.deepPartial()._type> = {
+// Datos simulados
+const MOCK_APPOINTMENTS: Record<string, any[]> = {
   'patient-123': [
-    { appointmentId: 'appt-001', date: '2024-08-15', time: '10:00 AM', doctor: 'Dr. Smith', reason: 'Routine Checkup' },
-    { appointmentId: 'appt-002', date: '2024-09-01', time: '02:30 PM', doctor: 'Dr. Jones', reason: 'Cavity Filling' },
+    { appointmentId: 'appt-001', date: '2024-08-15', time: '10:00 AM', doctor: 'Dr. Rivera', reason: 'Limpieza Rutinaria' },
+    { appointmentId: 'appt-002', date: '2024-09-01', time: '02:30 PM', doctor: 'Dr. Rivera', reason: 'Tratamiento de Caries' },
   ],
   'patient-456': [
-    { appointmentId: 'appt-003', date: '2024-08-20', time: '11:00 AM', doctor: 'Dr. Smith', reason: 'Teeth Cleaning' },
+    { appointmentId: 'appt-003', date: '2024-08-20', time: '11:00 AM', doctor: 'Dr. Rivera', reason: 'Limpieza Dental' },
   ],
 };
 
 const getPatientAppointmentsTool = ai.defineTool(
   {
     name: 'getPatientAppointments',
-    description: 'Retrieves a list of upcoming appointments for a given patient by their ID.',
+    description: 'Recupera una lista de citas próximas para un paciente dado por su ID.',
     inputSchema: z.object({
-      patientId: z.string().describe('The unique identifier of the patient.'),
+      patientId: z.string().describe('El identificador único del paciente.'),
     }),
     outputSchema: z.array(z.object({
-      appointmentId: z.string().describe('The unique identifier for the appointment.'),
-      date: z.string().describe('The date of the appointment (YYYY-MM-DD).'),
-      time: z.string().describe('The time of the appointment (HH:MM AM/PM).'),
-      doctor: z.string().describe('The doctor for the appointment.'),
-      reason: z.string().describe('The reason for the appointment.'),
+      appointmentId: z.string().describe('ID único de la cita.'),
+      date: z.string().describe('Fecha (AAAA-MM-DD).'),
+      time: z.string().describe('Hora (HH:MM AM/PM).'),
+      doctor: z.string().describe('Nombre del doctor.'),
+      reason: z.string().describe('Motivo de la cita.'),
     })),
   },
   async (input) => {
-    // In a real application, this would fetch data from a database.
-    console.log(`Tool call: getPatientAppointments for patientId: ${input.patientId}`);
+    console.log(`Llamada a herramienta: getPatientAppointments para patientId: ${input.patientId}`);
     return MOCK_APPOINTMENTS[input.patientId] || [];
   }
 );
@@ -57,31 +54,29 @@ const getPatientAppointmentsTool = ai.defineTool(
 const rescheduleAppointmentTool = ai.defineTool(
   {
     name: 'rescheduleAppointment',
-    description: 'Reschedules an existing appointment for a patient to a new date and time.',
+    description: 'Reprograma una cita existente para un paciente a una nueva fecha y hora.',
     inputSchema: z.object({
-      patientId: z.string().describe('The unique identifier of the patient.'),
-      appointmentId: z.string().describe('The ID of the appointment to reschedule.'),
-      newDate: z.string().describe('The new desired date for the appointment (YYYY-MM-DD).'),
-      newTime: z.string().describe('The new desired time for the appointment (HH:MM AM/PM).'),
+      patientId: z.string().describe('ID único del paciente.'),
+      appointmentId: z.string().describe('ID de la cita a reprogramar.'),
+      newDate: z.string().describe('Nueva fecha deseada (AAAA-MM-DD).'),
+      newTime: z.string().describe('Nueva hora deseada (HH:MM AM/PM).'),
     }),
     outputSchema: z.object({
-      success: z.boolean().describe('True if the appointment was successfully rescheduled, false otherwise.'),
-      message: z.string().describe('A message detailing the outcome of the reschedule attempt.'),
+      success: z.boolean().describe('Verdadero si se reprogramó con éxito.'),
+      message: z.string().describe('Mensaje detallando el resultado.'),
     }),
   },
   async (input) => {
-    // In a real application, this would update the database.
-    console.log(`Tool call: rescheduleAppointment for patientId: ${input.patientId}, appointmentId: ${input.appointmentId} to ${input.newDate} at ${input.newTime}`);
+    console.log(`Llamada a herramienta: rescheduleAppointment para patientId: ${input.patientId}`);
     const patientAppointments = MOCK_APPOINTMENTS[input.patientId];
     const appointment = patientAppointments?.find(app => app.appointmentId === input.appointmentId);
 
     if (appointment) {
-      // Simulate successful reschedule
       appointment.date = input.newDate;
       appointment.time = input.newTime;
-      return { success: true, message: `Appointment ${input.appointmentId} successfully rescheduled to ${input.newDate} at ${input.newTime}.` };
+      return { success: true, message: `Cita ${input.appointmentId} reprogramada con éxito para el ${input.newDate} a las ${input.newTime}.` };
     } else {
-      return { success: false, message: `Appointment ${input.appointmentId} not found for patient ${input.patientId}.` };
+      return { success: false, message: `No se encontró la cita ${input.appointmentId} para el paciente.` };
     }
   }
 );
@@ -91,21 +86,21 @@ const patientAppointmentAssistantPrompt = ai.definePrompt({
   input: { schema: PatientAppointmentAssistantInputSchema },
   output: { schema: PatientAppointmentAssistantOutputSchema },
   tools: [getPatientAppointmentsTool, rescheduleAppointmentTool],
-  prompt: `You are DentaSync, a helpful and friendly AI assistant for DentaSync Dental Clinic.
-Your goal is to assist patients with their appointment inquiries, reschedule requests, and common questions about the clinic.
+  prompt: `Eres DentaSync, un asistente de IA amable y servicial para la Clínica Dental DentaSync.
+Tu objetivo es ayudar a los pacientes con sus consultas sobre citas, solicitudes de reprogramación y preguntas comunes sobre la clínica. TODAS tus respuestas deben ser en ESPAÑOL.
 
-Here is some general information about DentaSync Dental Clinic:
-- **Hours**: Monday-Friday, 9 AM - 6 PM. Saturday, 10 AM - 2 PM. Closed Sunday.
-- **Location**: 123 Main Street, Anytown, USA.
-- **Services**: General Dentistry, Cleanings, Fillings, Extractions, Root Canals, Cosmetic Dentistry.
-- **Appointment Policy**: Patients can view, reschedule, or cancel appointments via this chat or the mobile app. Rescheduling requires a minimum of 24-hour notice.
+Información General de la Clínica:
+- Horarios: Lunes a Viernes, 9 AM - 6 PM. Sábados, 10 AM - 2 PM. Domingo Cerrado.
+- Ubicación: Calle Principal 123, Ciudad Salud.
+- Servicios: Odontología General, Limpiezas, Resinas, Extracciones, Endodoncia, Estética.
+- Política: Reprogramar requiere al menos 24 horas de antelación.
 
-When a patient asks about their appointments, use the 'getPatientAppointments' tool to retrieve their upcoming appointments. If the patient explicitly asks to reschedule an appointment, use the 'rescheduleAppointment' tool. Always confirm details with the patient before attempting to reschedule.
+Cuando un paciente pregunte por sus citas, usa 'getPatientAppointments'. Si pide reprogramar, usa 'rescheduleAppointment'. Confirma siempre los detalles antes de realizar la acción.
 
-Patient ID: {{{patientId}}}
-Patient Query: {{{query}}}
+ID del Paciente: {{{patientId}}}
+Consulta del Paciente: {{{query}}}
 
-Respond clearly and concisely. If you need more information to perform an action (like rescheduling), ask the patient for it.`,
+Responde de forma clara y concisa en español.`,
 });
 
 const patientAppointmentAssistantFlow = ai.defineFlow(

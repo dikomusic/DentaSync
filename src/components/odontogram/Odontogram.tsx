@@ -9,16 +9,16 @@ export function Odontogram() {
   const lowerTeeth = Array.from({ length: 16 }, (_, i) => 32 - i);
 
   return (
-    <Card className="w-full">
+    <Card className="w-full border-none shadow-sm">
       <CardHeader>
-        <CardTitle className="text-lg font-semibold flex items-center gap-2">
+        <CardTitle className="text-lg font-bold flex items-center gap-2">
           Odontograma Digital
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col gap-8">
-          {/* Upper Jaw */}
-          <div className="flex justify-between items-end gap-2 overflow-x-auto pb-2">
+        <div className="flex flex-col gap-10">
+          {/* Jaw Superior */}
+          <div className="flex justify-between items-end gap-2 overflow-x-auto pb-4">
             {upperTeeth.map((id) => (
               <Tooth 
                 key={id} 
@@ -29,10 +29,10 @@ export function Odontogram() {
             ))}
           </div>
 
-          <div className="border-t border-dashed border-muted-foreground/30" />
+          <div className="border-t border-dashed border-muted mx-10" />
 
-          {/* Lower Jaw */}
-          <div className="flex justify-between items-start gap-2 overflow-x-auto pt-2">
+          {/* Jaw Inferior */}
+          <div className="flex justify-between items-start gap-2 overflow-x-auto pt-4">
             {lowerTeeth.map((id) => (
               <Tooth 
                 key={id} 
@@ -44,18 +44,18 @@ export function Odontogram() {
           </div>
         </div>
 
-        <div className="mt-6 flex flex-wrap gap-4 text-xs font-medium justify-center border-t pt-4">
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-white border border-primary rounded" /> Healthy
+        <div className="mt-8 flex flex-wrap gap-6 text-[10px] font-bold justify-center border-t pt-6 uppercase tracking-wider text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-white border-2 border-primary rounded-sm" /> Sano
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-red-500 rounded" /> Caries
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-red-500 rounded-sm" /> Caries
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-blue-400 rounded" /> Obturación
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-blue-400 rounded-sm" /> Obturación
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-3 h-3 bg-gray-200 border border-muted rounded" /> Ausencia
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 bg-gray-200 border border-muted rounded-sm" /> Ausencia
           </div>
         </div>
       </CardContent>

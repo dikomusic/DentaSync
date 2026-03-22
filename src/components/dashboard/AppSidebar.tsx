@@ -28,7 +28,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navItems = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
+  { icon: LayoutDashboard, label: "Panel de Control", href: "/dashboard" },
   { icon: Calendar, label: "Agenda", href: "/agenda" },
   { icon: Users, label: "Pacientes", href: "/patients" },
   { icon: Bot, label: "Asistente IA", href: "/ai-assistant" },
