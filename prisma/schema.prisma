@@ -1,0 +1,761 @@
+// ══════════════════════════════════════════════════════════════════
+// DentaSync — schema.prisma completo
+// 13 módulos · Multi-tenant · PostgreSQL
+// Equipo DentaSync 2026 · Escuela Militar de Ingeniería
+// ══════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M02 + M03 — TENANTS, PLANES Y SUSCRIPCIONES
+// ══════════════════════════════════════════════════════════════════
+
+model Plan {
+  planId             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre             String   @db.VarChar(50)
+  precioMensual      Decimal  @db.Decimal(10, 2)
+  limiteUsuarios     Int      @default(5)
+  limitePacientes    Int      @default(100)
+  limiteSucursales   Int      @default(1)
+  modulosHabilitados String[]
+  activo             Boolean  @default(true)
+  creadoEn           DateTime @default(now())
+
+  tenants       Tenant[]
+  suscripciones Suscripcion[]
+
+  @@map("planes")
+}
+
+model Tenant {
+  tenantId  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  nombre    String   @db.VarChar(100)
+  ciudad    String?  @db.VarChar(80)
+  direccion String?  @db.VarChar(200)
+  telefono  String?  @db.VarChar(20)
+  email     String?  @db.VarChar(100)
+  logoUrl   String?  @db.VarChar(500)
+  planId    String?  @db.Uuid
+  estado    String   @default("activo") @db.VarChar(20)
+  creadoEn  DateTime @default(now())
+
+  plan          Plan?          @relation(fields: [planId], references: [planId])
+  sucursales    Sucursal[]
+  suscripciones Suscripcion[]
+  usuarios      Usuario[]
+  especialidades Especialidad[]
+  boxes         Box[]
+  pacientes     Paciente[]
+  citas         Cita[]
+  cobros        Cobro[]
+  aranceles     Arancel[]
+  insumos       Insumo[]
+  ordenes       OrdenLaboratorio[]
+  conversaciones Conversacion[]
+  logs          LogAuditoria[]
+  horariosAtencion HorarioAtencion[]
+  fichasClinicas   FichaClinica[]
+  listasEspera   ListaEspera[] @relation("TenantListaEspera")
+
+  @@map("tenants")
+}
+
+model Sucursal {
+  sucursalId String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String   @db.Uuid
+  nombre     String   @db.VarChar(100)
+  direccion  String?  @db.VarChar(200)
+  ciudad     String?  @db.VarChar(80)
+  telefono   String?  @db.VarChar(20)
+  activa     Boolean  @default(true)
+  creadoEn   DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+
+  @@map("sucursales")
+}
+
+model Suscripcion {
+  suscripcionId    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId         String   @db.Uuid
+  planId           String   @db.Uuid
+  fechaInicio      DateTime @db.Date
+  fechaVencimiento DateTime @db.Date
+  montoPagado      Decimal? @db.Decimal(10, 2)
+  metodoPago       String?  @db.VarChar(50)
+  estado           String   @default("vigente") @db.VarChar(20)
+  registradoEn     DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [tenantId])
+  plan   Plan   @relation(fields: [planId], references: [planId])
+
+  @@map("suscripciones")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M01 — AUTENTICACIÓN Y CONTROL DE ACCESO
+// ══════════════════════════════════════════════════════════════════
+
+model Usuario {
+  usuarioId    String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String?   @db.Uuid
+  nombre       String    @db.VarChar(80)
+  apellido     String    @db.VarChar(80)
+  email        String    @unique @db.VarChar(100)
+  passwordHash String    @db.VarChar(255)
+  rol          String    @db.VarChar(20)
+  activo       Boolean   @default(true)
+  twoFaSecret  String?   @db.VarChar(100)
+  twoFaActivo  Boolean   @default(false)
+  creadoEn     DateTime  @default(now())
+  ultimoAcceso DateTime?
+
+  tenant              Tenant?              @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  sesiones            Sesion[]
+  tokensRecuperacion  TokenRecuperacion[]
+  especialidades      DoctorEspecialidad[]
+  horariosAtencion    HorarioAtencion[]
+  citasCreadas        Cita[]               @relation("CitasCreadas")
+  citasComoDoctor     Cita[]               @relation("CitasDoctor")
+  bloqueos            BloqueoAgenda[]
+  evoluciones         Evolucion[]
+  recetas             Receta[]
+  fichasCreadas       FichaClinica[]
+  cobrosRegistrados   Cobro[]
+  abonosRegistrados   Abono[]
+  comisiones          Comision[]
+  conversacionesAsig  Conversacion[]
+  documentosSubidos   DocumentoPaciente[]
+  anamnesisActualiz   Anamnesis[]
+  procedimientos      ProcedimientoPlan[]
+  historialEstados    HistorialEstadoPac[]
+  pacientesCreados    Paciente[]           @relation("PacientesCreados")
+  pacienteUsuario     Paciente?            @relation("PacienteUsuario")
+  logs                LogAuditoria[]
+  planesCreados       PlanTratamiento[]
+  odontogramas        Odontograma[] @relation("UsuarioOdontogramas")
+  ordenesLaboratorio  OrdenLaboratorio[] @relation("UsuarioOrdenesLaboratorio")
+
+  @@map("usuarios")
+}
+
+model Sesion {
+  sesionId   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId  String   @db.Uuid
+  tokenHash  String   @db.VarChar(255)
+  expiraEn   DateTime
+  creadoEn   DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [usuarioId], onDelete: Cascade)
+
+  @@map("sesiones")
+}
+
+model TokenRecuperacion {
+  tokenId   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  usuarioId String   @db.Uuid
+  tokenHash String   @db.VarChar(255)
+  usado     Boolean  @default(false)
+  expiraEn  DateTime
+  creadoEn  DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [usuarioId], onDelete: Cascade)
+
+  @@map("tokens_recuperacion")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M04 — GESTIÓN DEL CONSULTORIO
+// ══════════════════════════════════════════════════════════════════
+
+model Especialidad {
+  especialidadId  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  nombre          String   @db.VarChar(80)
+  duracionMinutos Int      @default(30)
+  activa          Boolean  @default(true)
+
+  tenant           Tenant               @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  doctores         DoctorEspecialidad[]
+  horarios         HorarioAtencion[]
+  citas            Cita[]
+  aranceles        Arancel[]
+  procedimientos   ProcedimientoPlan[]
+  listaEspera      ListaEspera[]
+
+  @@map("especialidades")
+}
+
+model DoctorEspecialidad {
+  doctorId        String @db.Uuid
+  especialidadId  String @db.Uuid
+
+  doctor       Usuario      @relation(fields: [doctorId], references: [usuarioId], onDelete: Cascade)
+  especialidad Especialidad @relation(fields: [especialidadId], references: [especialidadId], onDelete: Cascade)
+
+  @@id([doctorId, especialidadId])
+  @@map("doctor_especialidades")
+}
+
+model HorarioAtencion {
+  horarioId      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @db.Uuid
+  especialidadId String?  @db.Uuid
+  doctorId       String?  @db.Uuid
+  diaSemana      Int
+  horaInicio     DateTime @db.Time()
+  horaFin        DateTime @db.Time()
+  activo         Boolean  @default(true)
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [tenantId])
+  especialidad Especialidad? @relation(fields: [especialidadId], references: [especialidadId])
+  doctor       Usuario?      @relation(fields: [doctorId], references: [usuarioId])
+
+  @@map("horarios_atencion")
+}
+
+model Box {
+  boxId     String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId  String  @db.Uuid
+  nombre    String  @db.VarChar(50)
+  activo    Boolean @default(true)
+
+  tenant Tenant @relation(fields: [tenantId], references: [tenantId], onDelete: Cascade)
+  citas  Cita[]
+
+  @@map("boxes")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M06 — GESTIÓN DE PACIENTES
+// ══════════════════════════════════════════════════════════════════
+
+model Paciente {
+  pacienteId      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  usuarioId       String?  @unique @db.Uuid
+  nombre          String   @db.VarChar(80)
+  apellido        String   @db.VarChar(80)
+  dni             String   @db.VarChar(20)
+  fechaNacimiento DateTime @db.Date
+  genero          String?  @db.VarChar(15)
+  telefono        String?  @db.VarChar(20)
+  email           String?  @db.VarChar(100)
+  direccion       String?  @db.VarChar(200)
+  ciudad          String?  @db.VarChar(80)
+  estado          String   @default("ACTIVO") @db.VarChar(15)
+  clasificacion   String   @default("NUEVO") @db.VarChar(20)
+  motivoEstado    String?
+  creadoPor       String?  @db.Uuid
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+
+  tenant               Tenant               @relation(fields: [tenantId], references: [tenantId])
+  usuarioCuenta        Usuario?             @relation("PacienteUsuario", fields: [usuarioId], references: [usuarioId])
+  creadoPorUsuario     Usuario?             @relation("PacientesCreados", fields: [creadoPor], references: [usuarioId])
+  contactoEmergencia   ContactoEmergencia[]
+  anamnesis            Anamnesis?
+  alergiasPaciente     AlergiaPaciente[]
+  antecedentesClinicos AntecedenteClinico[]
+  convenioPaciente     ConvenioPaciente?
+  documentos           DocumentoPaciente[]
+  historialEstado      HistorialEstadoPac[]
+  citas                Cita[]
+  cobros               Cobro[]
+  fichaClinica         FichaClinica?
+  listaEspera          ListaEspera[]
+  conversaciones       Conversacion[]
+  preferencias         PreferenciaPaciente?
+  ordenes              OrdenLaboratorio[]
+
+  @@unique([tenantId, dni])
+  @@map("pacientes")
+}
+
+model ContactoEmergencia {
+  contactoId  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pacienteId  String   @db.Uuid
+  nombre      String   @db.VarChar(100)
+  parentesco  String?  @db.VarChar(50)
+  telefono    String   @db.VarChar(20)
+  email       String?  @db.VarChar(100)
+  creadoEn    DateTime @default(now())
+
+  paciente Paciente @relation(fields: [pacienteId], references: [pacienteId], onDelete: Cascade)
+
+  @@map("contactos_emergencia")
+}
+
+model Anamnesis {
+  anamnesisId    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pacienteId     String   @unique @db.Uuid
+  grupoSanguineo String?  @db.VarChar(10)
+  alergias       String[]
+  enfermedades   String[]
+  medicacion     String[]
+  notasClinicas  String?
+  alertaCritica  Boolean  @default(false)
+  actualizadoPor String?  @db.Uuid
+  actualizadoEn  DateTime @default(now())
+
+  paciente          Paciente @relation(fields: [pacienteId], references: [pacienteId], onDelete: Cascade)
+  actualizadoByUser Usuario? @relation(fields: [actualizadoPor], references: [usuarioId])
+
+  @@map("anamnesis")
+}
+
+model DocumentoPaciente {
+  documentoId String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pacienteId  String   @db.Uuid
+  nombre      String   @db.VarChar(200)
+  tipo        String   @default("otro") @db.VarChar(30)
+  tamanioKb   Int?
+  url         String   @db.VarChar(500)
+  subidoPor   String?  @db.Uuid
+  subidoEn    DateTime @default(now())
+
+  paciente  Paciente @relation(fields: [pacienteId], references: [pacienteId], onDelete: Cascade)
+  subidoBy  Usuario? @relation(fields: [subidoPor], references: [usuarioId])
+
+  @@map("documentos_paciente")
+}
+
+model HistorialEstadoPac {
+  historialId    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pacienteId     String   @db.Uuid
+  estadoAnterior String?  @db.VarChar(15)
+  estadoNuevo    String?  @db.VarChar(15)
+  motivo         String?
+  cambiadoPor    String?  @db.Uuid
+  cambiadoEn     DateTime @default(now())
+
+  paciente    Paciente @relation(fields: [pacienteId], references: [pacienteId])
+  cambiadoBy  Usuario? @relation(fields: [cambiadoPor], references: [usuarioId])
+
+  @@map("historial_estado_paciente")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M05 — AGENDA Y CITAS
+// ══════════════════════════════════════════════════════════════════
+
+model Cita {
+  citaId          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  pacienteId      String   @db.Uuid
+  doctorId        String   @db.Uuid
+  especialidadId  String   @db.Uuid
+  boxId           String?  @db.Uuid
+  fechaHora       DateTime
+  duracionMin     Int      @default(30)
+  estado          String   @default("pendiente") @db.VarChar(20)
+  motivoConsulta  String?
+  motivoCancel    String?
+  creadoPor       String?  @db.Uuid
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [tenantId])
+  paciente     Paciente     @relation(fields: [pacienteId], references: [pacienteId])
+  doctor       Usuario      @relation("CitasDoctor", fields: [doctorId], references: [usuarioId])
+  especialidad Especialidad @relation(fields: [especialidadId], references: [especialidadId])
+  box          Box?         @relation(fields: [boxId], references: [boxId])
+  creadoBy     Usuario?     @relation("CitasCreadas", fields: [creadoPor], references: [usuarioId])
+  evoluciones  Evolucion[]
+  cobros       Cobro[]
+
+  @@map("citas")
+}
+
+model ListaEspera {
+  esperaId        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId        String   @db.Uuid
+  pacienteId      String   @db.Uuid
+  especialidadId  String   @db.Uuid
+  preferenciaHora String?
+  estado          String   @default("esperando") @db.VarChar(20)
+  creadoEn        DateTime @default(now())
+
+  tenant       Tenant       @relation("TenantListaEspera", fields: [tenantId], references: [tenantId])
+  paciente     Paciente     @relation(fields: [pacienteId], references: [pacienteId])
+  especialidad Especialidad @relation(fields: [especialidadId], references: [especialidadId])
+
+  @@map("lista_espera")
+}
+
+model BloqueoAgenda {
+  bloqueoId   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  doctorId    String   @db.Uuid
+  fechaInicio DateTime
+  fechaFin    DateTime
+  motivo      String?
+  creadoEn    DateTime @default(now())
+
+  doctor Usuario @relation(fields: [doctorId], references: [usuarioId])
+
+  @@map("bloqueos_agenda")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M07 — HISTORIA CLÍNICA
+// ══════════════════════════════════════════════════════════════════
+
+model FichaClinica {
+  fichaId    String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pacienteId String   @unique @db.Uuid
+  tenantId   String   @db.Uuid
+  creadoPor  String?  @db.Uuid
+  creadoEn   DateTime @default(now())
+  archivada  Boolean  @default(false)
+
+  paciente       Paciente         @relation(fields: [pacienteId], references: [pacienteId])
+  tenant         Tenant           @relation(fields: [tenantId], references: [tenantId])
+  creadoBy       Usuario?         @relation(fields: [creadoPor], references: [usuarioId])
+  evoluciones    Evolucion[]
+  odontogramas   Odontograma[]
+  recetas        Receta[]
+  consentimientos Consentimiento[]
+  planesTrat     PlanTratamiento[]
+
+  @@map("fichas_clinicas")
+}
+
+model Evolucion {
+  evolucionId   String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fichaId       String   @db.Uuid
+  citaId        String?  @db.Uuid
+  doctorId      String   @db.Uuid
+  diagnostico   String?
+  tratamiento   String?
+  observaciones String?
+  firmado       Boolean  @default(false)
+  creadoEn      DateTime @default(now())
+
+  ficha  FichaClinica @relation(fields: [fichaId], references: [fichaId])
+  cita   Cita?        @relation(fields: [citaId], references: [citaId])
+  doctor Usuario      @relation(fields: [doctorId], references: [usuarioId])
+
+  @@map("evoluciones")
+}
+
+model Odontograma {
+  odontogramaId String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fichaId       String   @db.Uuid
+  piezas        Json     @default("{}")
+  doctorId      String?  @db.Uuid
+  version       Int      @default(1)
+  creadoEn      DateTime @default(now())
+
+  ficha  FichaClinica @relation(fields: [fichaId], references: [fichaId])
+  doctor Usuario?     @relation("UsuarioOdontogramas", fields: [doctorId], references: [usuarioId], onDelete: SetNull)
+
+  @@map("odontogramas")
+}
+
+model Receta {
+  recetaId     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fichaId      String   @db.Uuid
+  doctorId     String   @db.Uuid
+  medicamentos Json     @default("[]")
+  indicaciones String?
+  pdfUrl       String?  @db.VarChar(500)
+  emitidaEn    DateTime @default(now())
+
+  ficha  FichaClinica @relation(fields: [fichaId], references: [fichaId])
+  doctor Usuario      @relation(fields: [doctorId], references: [usuarioId])
+
+  @@map("recetas")
+}
+
+model Consentimiento {
+  consentimientoId  String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fichaId           String    @db.Uuid
+  tipoProcedimiento String?   @db.VarChar(100)
+  firmadoEn         DateTime?
+  firmaUrl          String?   @db.VarChar(500)
+  pdfUrl            String?   @db.VarChar(500)
+  creadoEn          DateTime  @default(now())
+
+  ficha FichaClinica @relation(fields: [fichaId], references: [fichaId])
+
+  @@map("consentimientos")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M08 — PLAN DE TRATAMIENTO
+// ══════════════════════════════════════════════════════════════════
+
+model PlanTratamiento {
+  planTratId     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  fichaId        String   @db.Uuid
+  doctorId       String   @db.Uuid
+  totalEstimado  Decimal? @db.Decimal(10, 2)
+  progresoPct    Int      @default(0)
+  estado         String   @default("activo") @db.VarChar(20)
+  creadoEn       DateTime @default(now())
+
+  ficha          FichaClinica        @relation(fields: [fichaId], references: [fichaId])
+  doctor         Usuario             @relation(fields: [doctorId], references: [usuarioId])
+  procedimientos ProcedimientoPlan[]
+
+  @@map("planes_tratamiento")
+}
+
+model ProcedimientoPlan {
+  procedimientoId String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  planTratId      String    @db.Uuid
+  especialidadId  String?   @db.Uuid
+  descripcion     String
+  costo           Decimal?  @db.Decimal(10, 2)
+  estado          String    @default("pendiente") @db.VarChar(20)
+  completadoPor   String?   @db.Uuid
+  completadoEn    DateTime?
+
+  plan         PlanTratamiento @relation(fields: [planTratId], references: [planTratId], onDelete: Cascade)
+  especialidad Especialidad?   @relation(fields: [especialidadId], references: [especialidadId])
+  completadoBy Usuario?        @relation(fields: [completadoPor], references: [usuarioId])
+
+  @@map("procedimientos_plan")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M09 — COBROS Y SALDOS
+// ══════════════════════════════════════════════════════════════════
+
+model Arancel {
+  arancelId      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @db.Uuid
+  especialidadId String?  @db.Uuid
+  descripcion    String   @db.VarChar(200)
+  precioBase     Decimal  @db.Decimal(10, 2)
+  activo         Boolean  @default(true)
+  creadoEn       DateTime @default(now())
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [tenantId])
+  especialidad Especialidad? @relation(fields: [especialidadId], references: [especialidadId])
+
+  @@map("aranceles")
+}
+
+model Cobro {
+  cobroId           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String   @db.Uuid
+  pacienteId        String   @db.Uuid
+  citaId            String?  @db.Uuid
+  montoTotal        Decimal  @db.Decimal(10, 2)
+  descuento         Decimal  @default(0) @db.Decimal(10, 2)
+  montoFinal        Decimal  @db.Decimal(10, 2)
+  metodoPago        String   @default("efectivo") @db.VarChar(30)
+  saldoPendiente    Decimal  @default(0) @db.Decimal(10, 2)
+  numeroComprobante String?  @unique @db.VarChar(20)
+  registradoPor     String?  @db.Uuid
+  registradoEn      DateTime @default(now())
+
+  tenant         Tenant   @relation(fields: [tenantId], references: [tenantId])
+  paciente       Paciente @relation(fields: [pacienteId], references: [pacienteId])
+  cita           Cita?    @relation(fields: [citaId], references: [citaId])
+  registradoBy   Usuario? @relation(fields: [registradoPor], references: [usuarioId])
+  abonos         Abono[]
+  comisiones     Comision[]
+
+  @@map("cobros")
+}
+
+model Abono {
+  abonoId      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cobroId      String   @db.Uuid
+  monto        Decimal  @db.Decimal(10, 2)
+  metodoPago   String?  @db.VarChar(30)
+  registradoPor String? @db.Uuid
+  registradoEn DateTime @default(now())
+
+  cobro        Cobro   @relation(fields: [cobroId], references: [cobroId])
+  registradoBy Usuario? @relation(fields: [registradoPor], references: [usuarioId])
+
+  @@map("abonos")
+}
+
+model Comision {
+  comisionId  String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  doctorId    String   @db.Uuid
+  cobroId     String   @db.Uuid
+  porcentaje  Decimal  @db.Decimal(5, 2)
+  monto       Decimal  @db.Decimal(10, 2)
+  periodo     String?  @db.VarChar(7)
+  calculadoEn DateTime @default(now())
+
+  doctor Usuario @relation(fields: [doctorId], references: [usuarioId])
+  cobro  Cobro   @relation(fields: [cobroId], references: [cobroId])
+
+  @@map("comisiones")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M11 — CHATBOT CONVERSACIONAL
+// ══════════════════════════════════════════════════════════════════
+
+model Conversacion {
+  conversacionId String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId       String   @db.Uuid
+  pacienteId     String?  @db.Uuid
+  canal          String   @default("whatsapp") @db.VarChar(20)
+  estado         String   @default("activa") @db.VarChar(20)
+  asignadaA      String?  @db.Uuid
+  iniciadaEn     DateTime @default(now())
+  actualizadaEn  DateTime @updatedAt
+
+  tenant    Tenant    @relation(fields: [tenantId], references: [tenantId])
+  paciente  Paciente? @relation(fields: [pacienteId], references: [pacienteId])
+  agente    Usuario?  @relation(fields: [asignadaA], references: [usuarioId])
+  mensajes  Mensaje[]
+
+  @@map("conversaciones")
+}
+
+model Mensaje {
+  mensajeId       String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversacionId  String   @db.Uuid
+  remitente       String   @db.VarChar(20)
+  contenido       String
+  enviadoEn       DateTime @default(now())
+
+  conversacion Conversacion @relation(fields: [conversacionId], references: [conversacionId], onDelete: Cascade)
+
+  @@map("mensajes")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M13 — INVENTARIO Y LABORATORIO
+// ══════════════════════════════════════════════════════════════════
+
+model Insumo {
+  insumoId     String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId     String   @db.Uuid
+  nombre       String   @db.VarChar(100)
+  unidad       String?  @db.VarChar(30)
+  stockActual  Int      @default(0)
+  stockMinimo  Int      @default(5)
+  proveedor    String?  @db.VarChar(100)
+  activo       Boolean  @default(true)
+  creadoEn     DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [tenantId])
+
+  @@map("insumos")
+}
+
+model OrdenLaboratorio {
+  ordenId           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String    @db.Uuid
+  pacienteId        String?   @db.Uuid
+  doctorId          String?   @db.Uuid
+  tipoTrabajo       String?   @db.VarChar(100)
+  laboratorio       String?   @db.VarChar(100)
+  fechaEnvio        DateTime? @db.Date
+  fechaEntregaEst   DateTime? @db.Date
+  fechaEntregaReal  DateTime? @db.Date
+  costo             Decimal?  @db.Decimal(10, 2)
+  estado            String    @default("enviado") @db.VarChar(20)
+  notas             String?
+  creadoEn          DateTime  @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [tenantId])
+  paciente Paciente? @relation(fields: [pacienteId], references: [pacienteId])
+  doctor   Usuario?  @relation("UsuarioOrdenesLaboratorio", fields: [doctorId], references: [usuarioId], onDelete: SetNull)
+
+  @@map("ordenes_laboratorio")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M15 — AUDITORÍA
+// ══════════════════════════════════════════════════════════════════
+
+model LogAuditoria {
+  logId      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId   String?  @db.Uuid
+  usuarioId  String?  @db.Uuid
+  accion     String   @db.VarChar(100)
+  tabla      String?  @db.VarChar(50)
+  registroId String?  @db.Uuid
+  detalle    Json?
+  ip         String?  @db.VarChar(45)
+  creadoEn   DateTime @default(now())
+
+  tenant  Tenant?  @relation(fields: [tenantId], references: [tenantId])
+  usuario Usuario? @relation(fields: [usuarioId], references: [usuarioId])
+
+  @@map("logs_auditoria")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M16 — PORTAL DEL PACIENTE
+// ══════════════════════════════════════════════════════════════════
+
+model PreferenciaPaciente {
+  prefId            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pacienteId        String   @unique @db.Uuid
+  notifEmail        Boolean  @default(true)
+  notifWhatsapp     Boolean  @default(true)
+  notifRecordatorios Boolean @default(true)
+  idioma            String   @default("es") @db.VarChar(5)
+  actualizadoEn     DateTime @default(now())
+
+  paciente Paciente @relation(fields: [pacienteId], references: [pacienteId])
+
+  @@map("preferencias_paciente")
+}
+
+// ══════════════════════════════════════════════════════════════════
+// M06 (ext) — ALERGIAS, ANTECEDENTES Y CONVENIOS
+// ══════════════════════════════════════════════════════════════════
+
+model AlergiaPaciente {
+  alergiaId      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pacienteId     String    @db.Uuid
+  sustancia      String    @db.VarChar(100)
+  severidad      String    @db.VarChar(20)
+  reaccion       String?
+  fechaDeteccion DateTime? @db.Date
+  registradoPor  String?   @db.VarChar(100)
+  creadoEn       DateTime  @default(now())
+
+  paciente Paciente @relation(fields: [pacienteId], references: [pacienteId], onDelete: Cascade)
+
+  @@map("alergias_paciente")
+}
+
+model AntecedenteClinico {
+  antecedenteId String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pacienteId    String   @db.Uuid
+  tipo          String   @db.VarChar(30)
+  descripcion   String
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+
+  paciente Paciente @relation(fields: [pacienteId], references: [pacienteId], onDelete: Cascade)
+
+  @@map("antecedentes_clinicos")
+}
+
+model ConvenioPaciente {
+  convenioId          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  pacienteId          String    @unique @db.Uuid
+  tipo                String    @db.VarChar(30)
+  nombreEntidad       String    @db.VarChar(80)
+  numeroPoliza        String?   @db.VarChar(50)
+  porcentajeDescuento Int
+  vigenciaDesde       DateTime  @db.Date
+  vigenciaHasta       DateTime? @db.Date
+  activo              Boolean   @default(true)
+  creadoEn            DateTime  @default(now())
+
+  paciente Paciente @relation(fields: [pacienteId], references: [pacienteId], onDelete: Cascade)
+
+  @@map("convenios_paciente")
+}

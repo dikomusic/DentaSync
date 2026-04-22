@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -138,6 +138,10 @@ interface PacientePerfilSheetProps {
     dto: AdjuntarDocumentoDto,
     subidoPor: string,
   ) => Promise<void>;
+  onGuardarAnamnesis?: (
+    pacienteId: string,
+    dto: { grupoSanguineo?: string; medicamentosActuales: string[]; notasAdicionales?: string },
+  ) => Promise<void>;
 }
 
 // ─── Componente ─────────────────────────────────────────────────────────────
@@ -151,12 +155,29 @@ export function PacientePerfilSheet({
   onAgregarAlergia,
   onAgregarAntecedente,
   onAdjuntarDocumento,
+  onGuardarAnamnesis,
 }: PacientePerfilSheetProps) {
   const [modoEditar, setModoEditar] = useState(false);
   const [mostrarFormAlergia, setMostrarFormAlergia] = useState(false);
   const [mostrarFormAnt, setMostrarFormAnt] = useState(false);
   const [mostrarFormDoc, setMostrarFormDoc] = useState(false);
   const [mostrarFormMedicacion, setMostrarFormMedicacion] = useState(false);
+
+  // ── Estado local de anamnesis (sincronizado con el prop) ──
+  const [anaGrupo, setAnaGrupo]           = useState(paciente?.antecedentes?.grupoSanguineo ?? "");
+  const [anaMedicamentos, setAnaMedicamentos] = useState<string[]>(
+    paciente?.antecedentes?.medicamentosActuales ?? []
+  );
+  const [anaNotas, setAnaNotas]           = useState(paciente?.antecedentes?.notasAdicionales ?? "");
+  const [medicacionInput, setMedicacionInput] = useState("");
+  const [guardandoAnamnesis, setGuardandoAnamnesis] = useState(false);
+
+  useEffect(() => {
+    setAnaGrupo(paciente?.antecedentes?.grupoSanguineo ?? "");
+    setAnaMedicamentos(paciente?.antecedentes?.medicamentosActuales ?? []);
+    setAnaNotas(paciente?.antecedentes?.notasAdicionales ?? "");
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paciente?.id, paciente?.actualizadoEn]);
 
   // ── Formulario editar datos ──
   const editarForm = useForm<EditarValues>({
@@ -237,6 +258,20 @@ export function PacientePerfilSheet({
     setMostrarFormAnt(false);
   }
 
+  async function handleGuardarAnamnesis() {
+    if (!onGuardarAnamnesis) return;
+    setGuardandoAnamnesis(true);
+    try {
+      await onGuardarAnamnesis(paciente!.id, {
+        grupoSanguineo:      anaGrupo || undefined,
+        medicamentosActuales: anaMedicamentos,
+        notasAdicionales:    anaNotas || undefined,
+      });
+    } finally {
+      setGuardandoAnamnesis(false);
+    }
+  }
+
   async function handleGuardarDocumento(values: DocumentoValues) {
     if (!values.archivo) return;
     const nombreArchivo = values.archivo.name;
@@ -257,7 +292,10 @@ export function PacientePerfilSheet({
 
   return (
     <Sheet open={abierto} onOpenChange={onCerrar}>
-      <SheetContent className="w-full sm:max-w-2xl p-0 flex flex-col">
+      <SheetContent
+        className="w-full sm:max-w-2xl p-0 flex flex-col"
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
         {/* Header */}
         <SheetHeader className="px-6 pt-6 pb-4 border-b">
           <div className="flex items-start gap-4">
@@ -822,6 +860,19 @@ export function PacientePerfilSheet({
                 </div>
               </div>
 
+              {/* GRUPO SANGUÍNEO */}
+              <div className="space-y-1.5">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                  Grupo sanguíneo
+                </h3>
+                <Input
+                  placeholder="Ej. A+"
+                  value={anaGrupo}
+                  onChange={(e) => setAnaGrupo(e.target.value)}
+                  className="max-w-[120px]"
+                />
+              </div>
+
               {/* MEDICACIÓN ACTUAL */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
@@ -832,27 +883,59 @@ export function PacientePerfilSheet({
                     variant="outline"
                     size="sm"
                     className="gap-1.5 text-xs"
-                    onClick={() => setMostrarFormMedicacion((v: boolean) => !v)}
+                    onClick={() => setMostrarFormMedicacion((v) => !v)}
                   >
-                    <Plus className="h-3.5 w-3.5" />
-                    Agregar
+                    {mostrarFormMedicacion ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
+                    {mostrarFormMedicacion ? "Cancelar" : "Agregar"}
                   </Button>
                 </div>
 
+                {mostrarFormMedicacion && (
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Nombre del medicamento..."
+                      value={medicacionInput}
+                      onChange={(e) => setMedicacionInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && medicacionInput.trim()) {
+                          e.preventDefault();
+                          setAnaMedicamentos((prev) => [...prev, medicacionInput.trim()]);
+                          setMedicacionInput("");
+                          setMostrarFormMedicacion(false);
+                        }
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        if (medicacionInput.trim()) {
+                          setAnaMedicamentos((prev) => [...prev, medicacionInput.trim()]);
+                          setMedicacionInput("");
+                          setMostrarFormMedicacion(false);
+                        }
+                      }}
+                    >
+                      Añadir
+                    </Button>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap gap-2">
-                  {(paciente.antecedentes?.medicamentosActuales?.length ??
-                    0) === 0 ? (
+                  {anaMedicamentos.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-2">
                       Sin medicamentos registrados.
                     </p>
                   ) : (
-                    paciente.antecedentes?.medicamentosActuales.map((m, i) => (
+                    anaMedicamentos.map((m, i) => (
                       <Badge
                         key={i}
                         variant="outline"
-                        className="text-xs px-3 py-1"
+                        className="text-xs px-3 py-1 gap-1.5 cursor-pointer hover:bg-red-50"
+                        onClick={() =>
+                          setAnaMedicamentos((prev) => prev.filter((_, idx) => idx !== i))
+                        }
                       >
-                        {m}
+                        {m} <X className="h-2.5 w-2.5" />
                       </Badge>
                     ))
                   )}
@@ -864,14 +947,24 @@ export function PacientePerfilSheet({
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                   Notas clínicas
                 </h3>
-                <p className="text-sm bg-muted/50 rounded-lg p-3 min-h-[60px]">
-                  {paciente.antecedentes?.notasAdicionales ||
-                    "Sin notas clínicas registradas."}
-                </p>
+                <Textarea
+                  rows={3}
+                  className="resize-none text-sm"
+                  placeholder="Notas clínicas adicionales..."
+                  value={anaNotas}
+                  onChange={(e) => setAnaNotas(e.target.value)}
+                />
               </div>
 
-              <Button type="button" className="w-full gap-2">
-                <Save className="h-4 w-4" />
+              <Button
+                type="button"
+                className="w-full gap-2"
+                disabled={guardandoAnamnesis || !onGuardarAnamnesis}
+                onClick={handleGuardarAnamnesis}
+              >
+                {guardandoAnamnesis
+                  ? <Loader2 className="h-4 w-4 animate-spin" />
+                  : <Save className="h-4 w-4" />}
                 Guardar anamnesis
               </Button>
             </TabsContent>

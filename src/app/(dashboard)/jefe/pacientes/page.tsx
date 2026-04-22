@@ -19,17 +19,30 @@ export default function PacientesJefePage() {
 
   const {
     pacientes,
+    todosPacientes,
     stats,
     verificarDni,
     registrarPaciente,
     editarPaciente,
     clasificarPaciente,
+    guardarAnamnesis,
     agregarAlergia,
     agregarAntecedente,
     guardarConvenio,
     adjuntarDocumento,
     exportarFicha,
   } = usePacientes(filtros);
+
+  // Mantiene el paciente activo sincronizado cuando el hook actualiza su estado
+  const pacienteActivoSync     = pacienteActivo
+    ? (todosPacientes.find((p) => p.id === pacienteActivo.id) ?? pacienteActivo)
+    : null;
+  const pacienteClasificarSync = pacienteClasificar
+    ? (todosPacientes.find((p) => p.id === pacienteClasificar.id) ?? pacienteClasificar)
+    : null;
+  const pacienteConvenioSync   = pacienteConvenio
+    ? (todosPacientes.find((p) => p.id === pacienteConvenio.id) ?? pacienteConvenio)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -85,19 +98,20 @@ export default function PacientesJefePage() {
       {/* Sheet perfil */}
       <PacientePerfilSheet
         abierto={!!pacienteActivo}
-        paciente={pacienteActivo}
+        paciente={pacienteActivoSync}
         modificadoPor="Dr. Jefe"
         onCerrar={() => setPacienteActivo(null)}
         onEditar={editarPaciente}
         onAgregarAlergia={agregarAlergia}
         onAgregarAntecedente={agregarAntecedente}
         onAdjuntarDocumento={adjuntarDocumento}
+        onGuardarAnamnesis={guardarAnamnesis}
       />
 
       {/* Modal clasificar estado */}
       <ClasificarEstadoModal
         abierto={!!pacienteClasificar}
-        paciente={pacienteClasificar}
+        paciente={pacienteClasificarSync}
         onCerrar={() => setPacienteClasificar(null)}
         onClasificar={async (dto) => {
           await clasificarPaciente(dto, "Dr. Jefe");
@@ -108,7 +122,7 @@ export default function PacientesJefePage() {
       {/* Modal convenio */}
       <ConvenioModal
         abierto={!!pacienteConvenio}
-        paciente={pacienteConvenio}
+        paciente={pacienteConvenioSync}
         onCerrar={() => setPacienteConvenio(null)}
         onGuardarConvenio={async (dto) => {
           await guardarConvenio(dto);

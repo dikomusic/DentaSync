@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   type Paciente,
   type FiltrosPacientes,
@@ -12,106 +12,95 @@ import {
   type ConvenioDto,
   type AdjuntarDocumentoDto,
   EstadoPaciente,
-  ClasificacionPaciente,
 } from "../types/pacientes.types";
-import { PACIENTES_MOCK } from "../data/pacientes.mock";
 
-// ─── Hook principal ────────────────────────────────────────────────────────
+// ─── Helpers de fetch ─────────────────────────────────────────────────────────
+
+async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(url, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Error de red" })) as { error?: string };
+    throw new Error(err.error ?? `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+// ─── Hook principal ────────────────────────────────────────────────────────────
 
 export function usePacientes(filtros: FiltrosPacientes) {
-  const [pacientes, setPacientes] = useState<Paciente[]>(PACIENTES_MOCK);
+  const [pacientes, setPacientes]         = useState<Paciente[]>([]);
+  const [cargando, setCargando]           = useState(true);
   const [accionEnCurso, setAccionEnCurso] = useState<string | null>(null);
 
-  // Filtrar pacientes según criterios
+  // Carga inicial desde la API
+  const cargarPacientes = useCallback(async () => {
+    setCargando(true);
+    try {
+      const data = await apiFetch<Paciente[]>("/api/pacientes");
+      setPacientes(data);
+    } catch (err) {
+      console.error("[usePacientes] Error al cargar:", err);
+    } finally {
+      setCargando(false);
+    }
+  }, []);
+
+  useEffect(() => { void cargarPacientes(); }, [cargarPacientes]);
+
+  // Filtrado local (los datos ya están en estado)
   const pacientesFiltrados = useMemo(() => {
     return pacientes.filter((p) => {
-      if (filtros.estado && p.estado !== filtros.estado) return false;
-      if (filtros.clasificacion && p.clasificacion !== filtros.clasificacion) return false;
-
+      if (filtros.estado        && p.estado         !== filtros.estado)        return false;
+      if (filtros.clasificacion && p.clasificacion  !== filtros.clasificacion) return false;
       if (filtros.busqueda) {
         const q = filtros.busqueda.toLowerCase();
         const coincide =
-          p.nombre.toLowerCase().includes(q) ||
+          p.nombre.toLowerCase().includes(q)   ||
           p.apellido.toLowerCase().includes(q) ||
-          p.dni.includes(q) ||
-          p.telefono.includes(q) ||
+          p.dni.includes(q)                    ||
+          p.telefono.includes(q)               ||
           (p.email?.toLowerCase().includes(q) ?? false);
         if (!coincide) return false;
       }
-
       return true;
     });
   }, [pacientes, filtros]);
 
-  // Verificar si existe un paciente con ese DNI (para evitar duplicados)
+  // Verificar DNI duplicado (sobre el estado local)
   const verificarDni = useCallback(
-    (dni: string, excludeId?: string): Paciente | null => {
-      return (
-        pacientes.find((p) => p.dni === dni && p.id !== excludeId) ?? null
-      );
-    },
+    (dni: string, excludeId?: string): Paciente | null =>
+      pacientes.find((p) => p.dni === dni && p.id !== excludeId) ?? null,
     [pacientes]
   );
 
-  // Registrar nuevo paciente
-  const registrarPaciente = useCallback(
-    async (dto: RegistrarPacienteDto) => {
-      setAccionEnCurso("registrar");
-      try {
-        // TODO: await apiClient.post("/pacientes", dto)
-        await new Promise((r) => setTimeout(r, 400));
-        const nuevo: Paciente = {
-          id: `pac-${Date.now()}`,
-          ...dto,
-          estado: EstadoPaciente.ACTIVO,
-          clasificacion: ClasificacionPaciente.NUEVO,
-          documentos: [],
-          historialCambios: [],
-          totalCitas: 0,
-          saldoPendiente: 0,
-          creadoEn: new Date().toISOString().split("T")[0],
-          actualizadoEn: new Date().toISOString().split("T")[0],
-        };
-        setPacientes((prev) => [nuevo, ...prev]);
-        return nuevo;
-      } finally {
-        setAccionEnCurso(null);
-      }
-    },
-    []
-  );
+  // ── Registrar ─────────────────────────────────────────────────────────────
+  const registrarPaciente = useCallback(async (dto: RegistrarPacienteDto) => {
+    setAccionEnCurso("registrar");
+    try {
+      const nuevo = await apiFetch<Paciente>("/api/pacientes", {
+        method: "POST",
+        body:   JSON.stringify(dto),
+      });
+      setPacientes((prev) => [nuevo, ...prev]);
+      return nuevo;
+    } finally {
+      setAccionEnCurso(null);
+    }
+  }, []);
 
-  // Editar datos del paciente — registra historial de cambios
+  // ── Editar ────────────────────────────────────────────────────────────────
   const editarPaciente = useCallback(
-    async (pacienteId: string, dto: EditarPacienteDto, modificadoPor: string) => {
+    async (pacienteId: string, dto: EditarPacienteDto, _modificadoPor: string) => {
       setAccionEnCurso(pacienteId);
       try {
-        // TODO: await apiClient.patch(`/pacientes/${pacienteId}`, dto)
-        await new Promise((r) => setTimeout(r, 400));
-        setPacientes((prev) =>
-          prev.map((p) => {
-            if (p.id !== pacienteId) return p;
-
-            // Calcular cambios para el historial
-            const cambios = Object.entries(dto)
-              .filter(([campo, valor]) => valor !== undefined && String((p as Record<string, unknown>)[campo]) !== String(valor))
-              .map(([campo, valor]) => ({
-                id: `hc-${Date.now()}-${campo}`,
-                campo,
-                valorAnterior: String((p as Record<string, unknown>)[campo] ?? ""),
-                valorNuevo: String(valor),
-                modificadoPor,
-                modificadoEn: new Date().toISOString(),
-              }));
-
-            return {
-              ...p,
-              ...dto,
-              historialCambios: [...(p.historialCambios ?? []), ...cambios],
-              actualizadoEn: new Date().toISOString().split("T")[0],
-            };
-          })
-        );
+        const actualizado = await apiFetch<Paciente>(`/api/pacientes/${pacienteId}`, {
+          method: "PUT",
+          body:   JSON.stringify(dto),
+        });
+        setPacientes((prev) => prev.map((p) => (p.id === pacienteId ? actualizado : p)));
       } finally {
         setAccionEnCurso(null);
       }
@@ -119,33 +108,24 @@ export function usePacientes(filtros: FiltrosPacientes) {
     []
   );
 
-  // Clasificar paciente (estado + clasificación)
+  // ── Clasificar ────────────────────────────────────────────────────────────
   const clasificarPaciente = useCallback(
-    async (dto: ClasificarPacienteDto, modificadoPor: string) => {
+    async (dto: ClasificarPacienteDto, _modificadoPor: string) => {
       setAccionEnCurso(dto.pacienteId);
       try {
-        // TODO: await apiClient.patch(`/pacientes/${dto.pacienteId}/clasificar`, dto)
-        await new Promise((r) => setTimeout(r, 400));
-        setPacientes((prev) =>
-          prev.map((p) => {
-            if (p.id !== dto.pacienteId) return p;
-            const cambio = {
-              id: `hc-${Date.now()}`,
-              campo: "Estado",
-              valorAnterior: `${p.estado} / ${p.clasificacion}`,
-              valorNuevo: `${dto.estado} / ${dto.clasificacion}`,
-              modificadoPor,
-              modificadoEn: new Date().toISOString(),
-            };
-            return {
-              ...p,
-              estado: dto.estado,
+        const actualizado = await apiFetch<Paciente>(
+          `/api/pacientes/${dto.pacienteId}/clasificar`,
+          {
+            method: "PUT",
+            body:   JSON.stringify({
+              estado:        dto.estado,
               clasificacion: dto.clasificacion,
-              motivoEstado: dto.motivo,
-              historialCambios: [...(p.historialCambios ?? []), cambio],
-              actualizadoEn: new Date().toISOString().split("T")[0],
-            };
-          })
+              motivo:        dto.motivo,
+            }),
+          }
+        );
+        setPacientes((prev) =>
+          prev.map((p) => (p.id === dto.pacienteId ? actualizado : p))
         );
       } finally {
         setAccionEnCurso(null);
@@ -154,65 +134,25 @@ export function usePacientes(filtros: FiltrosPacientes) {
     []
   );
 
-  // Agregar alergia
+  // ── Agregar alergia ───────────────────────────────────────────────────────
   const agregarAlergia = useCallback(
-    async (dto: AgregarAlergiaDto, registradoPor: string) => {
+    async (dto: AgregarAlergiaDto, _registradoPor: string) => {
       setAccionEnCurso(dto.pacienteId);
       try {
-        await new Promise((r) => setTimeout(r, 300));
-        setPacientes((prev) =>
-          prev.map((p) => {
-            if (p.id !== dto.pacienteId) return p;
-            const nuevaAlergia = {
-              id: `alg-${Date.now()}`,
-              sustancia: dto.sustancia,
-              severidad: dto.severidad,
-              reaccion: dto.reaccion,
+        const actualizado = await apiFetch<Paciente>(
+          `/api/pacientes/${dto.pacienteId}/alergias`,
+          {
+            method: "POST",
+            body:   JSON.stringify({
+              sustancia:      dto.sustancia,
+              severidad:      dto.severidad,
+              reaccion:       dto.reaccion,
               fechaDeteccion: dto.fechaDeteccion,
-              registradoPor,
-            };
-            return {
-              ...p,
-              antecedentes: {
-                ...(p.antecedentes ?? { antecedentes: [], medicamentosActuales: [], actualizadoEn: "" }),
-                alergias: [...(p.antecedentes?.alergias ?? []), nuevaAlergia],
-                actualizadoEn: new Date().toISOString().split("T")[0],
-              },
-            };
-          })
+            }),
+          }
         );
-      } finally {
-        setAccionEnCurso(null);
-      }
-    },
-    []
-  );
-
-  // Agregar antecedente
-  const agregarAntecedente = useCallback(
-    async (dto: AgregarAntecedenteDto) => {
-      setAccionEnCurso(dto.pacienteId);
-      try {
-        await new Promise((r) => setTimeout(r, 300));
         setPacientes((prev) =>
-          prev.map((p) => {
-            if (p.id !== dto.pacienteId) return p;
-            const nuevo = {
-              id: `ant-${Date.now()}`,
-              tipo: dto.tipo,
-              descripcion: dto.descripcion,
-              fechaRegistro: new Date().toISOString().split("T")[0],
-              activo: true,
-            };
-            return {
-              ...p,
-              antecedentes: {
-                ...(p.antecedentes ?? { alergias: [], medicamentosActuales: [], actualizadoEn: "" }),
-                antecedentes: [...(p.antecedentes?.antecedentes ?? []), nuevo],
-                actualizadoEn: new Date().toISOString().split("T")[0],
-              },
-            };
-          })
+          prev.map((p) => (p.id === dto.pacienteId ? actualizado : p))
         );
       } finally {
         setAccionEnCurso(null);
@@ -221,31 +161,65 @@ export function usePacientes(filtros: FiltrosPacientes) {
     []
   );
 
-  // Gestionar convenio
-  const guardarConvenio = useCallback(
-    async (dto: ConvenioDto) => {
-      setAccionEnCurso(dto.pacienteId);
+  // ── Agregar antecedente ───────────────────────────────────────────────────
+  const agregarAntecedente = useCallback(async (dto: AgregarAntecedenteDto) => {
+    setAccionEnCurso(dto.pacienteId);
+    try {
+      const actualizado = await apiFetch<Paciente>(
+        `/api/pacientes/${dto.pacienteId}/antecedentes`,
+        {
+          method: "POST",
+          body:   JSON.stringify({ tipo: dto.tipo, descripcion: dto.descripcion }),
+        }
+      );
+      setPacientes((prev) =>
+        prev.map((p) => (p.id === dto.pacienteId ? actualizado : p))
+      );
+    } finally {
+      setAccionEnCurso(null);
+    }
+  }, []);
+
+  // ── Guardar convenio ──────────────────────────────────────────────────────
+  const guardarConvenio = useCallback(async (dto: ConvenioDto) => {
+    setAccionEnCurso(dto.pacienteId);
+    try {
+      const actualizado = await apiFetch<Paciente>(
+        `/api/pacientes/${dto.pacienteId}/convenio`,
+        {
+          method: "PUT",
+          body:   JSON.stringify({
+            tipo:                dto.tipo,
+            nombreEntidad:       dto.nombreEntidad,
+            numeroPoliza:        dto.numeroPoliza,
+            porcentajeDescuento: dto.porcentajeDescuento,
+            vigenciaDesde:       dto.vigenciaDesde,
+            vigenciaHasta:       dto.vigenciaHasta,
+          }),
+        }
+      );
+      setPacientes((prev) =>
+        prev.map((p) => (p.id === dto.pacienteId ? actualizado : p))
+      );
+    } finally {
+      setAccionEnCurso(null);
+    }
+  }, []);
+
+  // ── Guardar anamnesis ─────────────────────────────────────────────────────
+  const guardarAnamnesis = useCallback(
+    async (
+      pacienteId: string,
+      dto: { grupoSanguineo?: string; medicamentosActuales: string[]; notasAdicionales?: string }
+    ) => {
+      setAccionEnCurso(pacienteId);
       try {
-        await new Promise((r) => setTimeout(r, 400));
+        const actualizado = await apiFetch<Paciente>(
+          `/api/pacientes/${pacienteId}/anamnesis`,
+          { method: "PUT", body: JSON.stringify(dto) }
+        );
         setPacientes((prev) =>
-          prev.map((p) => {
-            if (p.id !== dto.pacienteId) return p;
-            return {
-              ...p,
-              convenio: {
-                id: p.convenio?.id ?? `conv-${Date.now()}`,
-                tipo: dto.tipo,
-                nombreEntidad: dto.nombreEntidad,
-                numeroPoliza: dto.numeroPoliza,
-                porcentajeDescuento: dto.porcentajeDescuento,
-                vigenciaDesde: dto.vigenciaDesde,
-                vigenciaHasta: dto.vigenciaHasta,
-                activo: true,
-              },
-              clasificacion: ClasificacionPaciente.CONVENIO,
-              actualizadoEn: new Date().toISOString().split("T")[0],
-            };
-          })
+          prev.map((p) => (p.id === pacienteId ? actualizado : p))
         );
       } finally {
         setAccionEnCurso(null);
@@ -254,26 +228,25 @@ export function usePacientes(filtros: FiltrosPacientes) {
     []
   );
 
-  // Adjuntar documento
+  // ── Adjuntar documento ────────────────────────────────────────────────────
   const adjuntarDocumento = useCallback(
-    async (dto: AdjuntarDocumentoDto, subidoPor: string) => {
+    async (dto: AdjuntarDocumentoDto, _subidoPor: string) => {
       setAccionEnCurso(dto.pacienteId);
       try {
-        await new Promise((r) => setTimeout(r, 500));
-        setPacientes((prev) =>
-          prev.map((p) => {
-            if (p.id !== dto.pacienteId) return p;
-            const doc = {
-              id: `doc-${Date.now()}`,
-              nombre: dto.nombre,
-              tipo: dto.tipo,
+        const actualizado = await apiFetch<Paciente>(
+          `/api/pacientes/${dto.pacienteId}/documentos`,
+          {
+            method: "POST",
+            body:   JSON.stringify({
+              nombre:      dto.nombre,
+              tipo:        dto.tipo,
               descripcion: dto.descripcion,
-              tamanioKb: dto.tamanioKb,
-              subidoEn: new Date().toISOString().split("T")[0],
-              subidoPor,
-            };
-            return { ...p, documentos: [...p.documentos, doc] };
-          })
+              tamanioKb:   dto.tamanioKb,
+            }),
+          }
+        );
+        setPacientes((prev) =>
+          prev.map((p) => (p.id === dto.pacienteId ? actualizado : p))
         );
       } finally {
         setAccionEnCurso(null);
@@ -282,7 +255,7 @@ export function usePacientes(filtros: FiltrosPacientes) {
     []
   );
 
-  // Exportar ficha del paciente como texto
+  // ── Exportar ficha (cliente puro, sin cambios) ────────────────────────────
   const exportarFicha = useCallback((paciente: Paciente) => {
     const lineas = [
       "═══════════════════════════════════════════════════════",
@@ -294,69 +267,75 @@ export function usePacientes(filtros: FiltrosPacientes) {
       `DNI:          ${paciente.dni}`,
       `Nacimiento:   ${paciente.fechaNacimiento} (Género: ${paciente.genero})`,
       `Teléfono:     ${paciente.telefono}`,
-      paciente.email ? `Email:        ${paciente.email}` : "",
+      paciente.email  ? `Email:        ${paciente.email}`  : "",
       paciente.ciudad ? `Ciudad:       ${paciente.ciudad}` : "",
       "",
       "ESTADO CLÍNICO",
-      `Estado:       ${paciente.estado}`,
-      `Clasificación: ${paciente.clasificacion}`,
-      `Total citas:  ${paciente.totalCitas}`,
-      `Última cita:  ${paciente.ultimaCitaFecha ?? "Sin citas"}`,
+      `Estado:          ${paciente.estado}`,
+      `Clasificación:   ${paciente.clasificacion}`,
+      `Total citas:     ${paciente.totalCitas}`,
+      `Última cita:     ${paciente.ultimaCitaFecha ?? "Sin citas"}`,
       `Saldo pendiente: S/ ${paciente.saldoPendiente}`,
       "",
     ];
 
     if (paciente.antecedentes) {
       lineas.push("ANTECEDENTES MÉDICOS");
-      if (paciente.antecedentes.grupoSanguineo) {
+      if (paciente.antecedentes.grupoSanguineo)
         lineas.push(`Grupo sanguíneo: ${paciente.antecedentes.grupoSanguineo}`);
-      }
-      paciente.antecedentes.antecedentes.forEach((a) => {
-        lineas.push(`[${a.tipo}] ${a.descripcion}`);
-      });
-      lineas.push("");
-      lineas.push("ALERGIAS");
+      paciente.antecedentes.antecedentes.forEach((a) =>
+        lineas.push(`[${a.tipo}] ${a.descripcion}`)
+      );
+      lineas.push("", "ALERGIAS");
       if (paciente.antecedentes.alergias.length === 0) {
         lineas.push("Sin alergias registradas");
       } else {
-        paciente.antecedentes.alergias.forEach((a) => {
-          lineas.push(`⚠ ${a.sustancia} (${a.severidad}): ${a.reaccion}`);
-        });
+        paciente.antecedentes.alergias.forEach((a) =>
+          lineas.push(`⚠ ${a.sustancia} (${a.severidad}): ${a.reaccion}`)
+        );
       }
       lineas.push("");
     }
 
     if (paciente.convenio?.activo) {
       lineas.push("CONVENIO");
-      lineas.push(`Entidad: ${paciente.convenio.nombreEntidad}`);
+      lineas.push(`Entidad:   ${paciente.convenio.nombreEntidad}`);
       lineas.push(`Descuento: ${paciente.convenio.porcentajeDescuento}%`);
-      lineas.push(`Vigencia: ${paciente.convenio.vigenciaDesde} → ${paciente.convenio.vigenciaHasta ?? "Sin vencimiento"}`);
+      lineas.push(
+        `Vigencia:  ${paciente.convenio.vigenciaDesde} → ${paciente.convenio.vigenciaHasta ?? "Sin vencimiento"}`
+      );
       lineas.push("");
     }
 
     lineas.push(`Generado: ${new Date().toLocaleString("es-PE")}`);
     lineas.push("═══════════════════════════════════════════════════════");
 
-    const blob = new Blob([lineas.filter((l) => l !== null).join("\n")], { type: "text/plain;charset=utf-8" });
+    const blob = new Blob([lineas.filter(Boolean).join("\n")], {
+      type: "text/plain;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
+    const a   = document.createElement("a");
+    a.href     = url;
     a.download = `ficha_${paciente.apellido}_${paciente.nombre}_${paciente.dni}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   }, []);
 
-  // Estadísticas rápidas
-  const stats = useMemo(() => ({
-    total:     pacientes.length,
-    activos:   pacientes.filter((p) => p.estado === EstadoPaciente.ACTIVO).length,
-    morosos:   pacientes.filter((p) => p.estado === EstadoPaciente.MOROSO).length,
-    convenio:  pacientes.filter((p) => p.convenio?.activo).length,
-  }), [pacientes]);
+  // ── Stats ─────────────────────────────────────────────────────────────────
+  const stats = useMemo(
+    () => ({
+      total:    pacientes.length,
+      activos:  pacientes.filter((p) => p.estado === EstadoPaciente.ACTIVO).length,
+      morosos:  pacientes.filter((p) => p.estado === EstadoPaciente.MOROSO).length,
+      convenio: pacientes.filter((p) => p.convenio?.activo).length,
+    }),
+    [pacientes]
+  );
 
   return {
-    pacientes: pacientesFiltrados,
+    pacientes:      pacientesFiltrados,
     todosPacientes: pacientes,
+    cargando,
     accionEnCurso,
     stats,
     verificarDni,
@@ -365,6 +344,7 @@ export function usePacientes(filtros: FiltrosPacientes) {
     clasificarPaciente,
     agregarAlergia,
     agregarAntecedente,
+    guardarAnamnesis,
     guardarConvenio,
     adjuntarDocumento,
     exportarFicha,

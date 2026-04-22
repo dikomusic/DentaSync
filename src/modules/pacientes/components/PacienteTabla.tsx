@@ -248,11 +248,11 @@ export function PacienteTabla({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => onVerPerfil(paciente)}>
+                          <DropdownMenuItem onSelect={() => setTimeout(() => onVerPerfil(paciente), 0)}>
                             <Eye className="mr-2 h-4 w-4" />
                             Ver perfil completo
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => onEditar(paciente)}>
+                          <DropdownMenuItem onSelect={() => setTimeout(() => onEditar(paciente), 0)}>
                             <Edit2 className="mr-2 h-4 w-4" />
                             Editar datos
                           </DropdownMenuItem>
@@ -261,13 +261,13 @@ export function PacienteTabla({
                             <>
                               <DropdownMenuSeparator />
                               {onClasificar && (
-                                <DropdownMenuItem onClick={() => onClasificar(paciente)}>
+                                <DropdownMenuItem onSelect={() => setTimeout(() => onClasificar(paciente), 0)}>
                                   <Shield className="mr-2 h-4 w-4" />
                                   Clasificar estado
                                 </DropdownMenuItem>
                               )}
                               {onExportar && (
-                                <DropdownMenuItem onClick={() => onExportar(paciente)}>
+                                <DropdownMenuItem onSelect={() => onExportar(paciente)}>
                                   <FileDown className="mr-2 h-4 w-4" />
                                   Exportar ficha
                                 </DropdownMenuItem>

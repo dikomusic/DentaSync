@@ -15,15 +15,21 @@ export default function PacientesSecretariaPage() {
 
   const {
     pacientes,
+    todosPacientes,
     accionEnCurso,
     stats,
     verificarDni,
     registrarPaciente,
     editarPaciente,
+    guardarAnamnesis,
     agregarAlergia,
     agregarAntecedente,
     adjuntarDocumento,
   } = usePacientes(filtros);
+
+  const pacienteActivoSync = pacienteActivo
+    ? (todosPacientes.find((p) => p.id === pacienteActivo.id) ?? pacienteActivo)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -67,13 +73,14 @@ export default function PacientesSecretariaPage() {
       {/* Sheet perfil */}
       <PacientePerfilSheet
         abierto={!!pacienteActivo}
-        paciente={pacienteActivo}
+        paciente={pacienteActivoSync}
         modificadoPor="Secretaria"
         onCerrar={() => setPacienteActivo(null)}
         onEditar={editarPaciente}
         onAgregarAlergia={agregarAlergia}
         onAgregarAntecedente={agregarAntecedente}
         onAdjuntarDocumento={adjuntarDocumento}
+        onGuardarAnamnesis={guardarAnamnesis}
       />
     </div>
   );

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma *)",
+      "Bash(npm install *)",
+      "Bash(node -e \"const pkg = require\\('./node_modules/@prisma/adapter-pg/package.json'\\); console.log\\(pkg.version\\)\")",
+      "Bash(node -e \"const m = require\\('./node_modules/@prisma/adapter-pg'\\); console.log\\(Object.keys\\(m\\)\\)\")",
+      "Bash(node -e \"const {PrismaPg} = require\\('./node_modules/@prisma/adapter-pg'\\); console.log\\(PrismaPg.toString\\(\\).slice\\(0,300\\)\\)\")",
+      "Bash(PRISMA_USER_CONSENT_FOR_DANGEROUS_AI_ACTION=\"si, procede\" npx prisma db push --force-reset)",
+      "Bash(npx tsc *)"
+    ]
+  }
+}
